@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>An Application to Display Support Ticket Trends</title>
+  <meta charset="utf-8">
+  <meta name="description" content="An Application to Display Support Ticket Trends">
+  <meta name="author" content="Ashraf Youssef">
+  <meta name="generator" content="slidify" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <link rel="stylesheet" href="http://slidifylibraries2.googlecode.com/git/inst/libraries/frameworks/io2012/css/default.css" media="all" >
+  <link rel="stylesheet" href="http://slidifylibraries2.googlecode.com/git/inst/libraries/frameworks/io2012/css/phone.css" 
+    media="only screen and (max-device-width: 480px)" >
+  <link rel="stylesheet" href="http://slidifylibraries2.googlecode.com/git/inst/libraries/frameworks/io2012/css/slidify.css" >
+  <link rel="stylesheet" href="http://slidifylibraries2.googlecode.com/git/inst/libraries/highlighters/highlight.js/css/tomorrow.css" />
+  <base target="_blank"> <!-- This amazingness opens all links in a new tab. -->  <link rel=stylesheet href="./assets/css/ribbons.css"></link>
+
+  
+  <!-- Grab CDN jQuery, fall back to local if offline -->
+  <script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.min.js"></script>
+  <script>window.jQuery || document.write('<script src="http://slidifylibraries2.googlecode.com/git/inst/libraries/widgets/quiz/js/jquery.js"><\/script>')</script> 
+  <script data-main="http://slidifylibraries2.googlecode.com/git/inst/libraries/frameworks/io2012/js/slides" 
+    src="http://slidifylibraries2.googlecode.com/git/inst/libraries/frameworks/io2012/js/require-1.0.8.min.js">
+  </script>
+  
+  
+
+</head>
+<body style="opacity: 0">
+  <slides class="layout-widescreen">
+    
+    <!-- LOGO SLIDE -->
+        <slide class="title-slide segue nobackground">
+  <hgroup class="auto-fadein">
+    <h1>An Application to Display Support Ticket Trends</h1>
+    <h2>A Shiny App</h2>
+    <p>Ashraf Youssef<br/>Coursera Data Science Specialization Student</p>
+  </hgroup>
+  <article></article>  
+</slide>
+    
+
+    <!-- SLIDES -->
+    <slide class="" id="slide-1" style="background:;">
+  <hgroup>
+    <h2>Introduction</h2>
+  </hgroup>
+  <article data-timings="">
+    <ol>
+<li><p>The Shiny app that I created can be found at the following location:
+<a href="https://ashraf.shinyapps.io/AppSupportTickets/">https://ashraf.shinyapps.io/AppSupportTickets/</a></p></li>
+<li><p>The purpose of this application is to allow a user to graph the historical trend of the number of support tickets for a set of 12 applications using check boxes</p></li>
+<li><p>The app was written using Shiny and reactive controls</p></li>
+<li><p>This will be the foundation for a much more sophisticated application that will predict the quality of the financial monthly close for the company based on a number of other factors.</p></li>
+</ol>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="class" id="id" style="background:;">
+  <hgroup>
+    <h2>Pre-processing</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li>The raw data is a large multi-megabyte file.  This is not used in the Shiny app, but rather I created a summary file that becomes the input for the app</li>
+</ul>
+
+<p>Here is the code that processes the raw data:</p>
+
+<pre><code class="r">setwd(&#39;~/DataScience/Rwork/DataProducts/FinalProject&#39;)
+rawdata&lt;-read.csv(&#39;AppDataMarch2016.csv&#39;)
+ticketsummary&lt;-group_by(rawdata,Incident.Created.Year.Month.Display.Code,
+                        Related.Root.Configuration.Item.Application.Portfolio.Identifier,
+                        Related.Root.Configuration.Item.Business.Friendly.Name)
+
+(ticketcount &lt;- summarize(ticketsummary,count=n()))
+
+write.csv(ticketcount, file=&#39;tickcount.csv&#39;)
+
+ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier&lt;-
+  as.factor(ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier)
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-3" style="background:;">
+  <hgroup>
+    <h2>Input and Simplification of the Data</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>Reading in the input file:</p>
+
+<pre><code class="r">ticketcount&lt;-read.csv(file=&#39;tickcount.csv&#39;)
+ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier&lt;-
+  as.factor(ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier)
+ticketcount1&lt;-subset(ticketcount, Incident.Created.Year.Month.Display.Code !=&quot;&quot;, drop = T)
+dim(ticketcount1)
+</code></pre>
+
+<pre><code>## [1] 257   5
+</code></pre>
+
+<p>This code above also removes all the data where there is no year/code combination present.</p>
+
+<p>Then we limit the data to a set of 12 applications listed by their 6 digit identifier.  Not all of these applications have ticket data in the input file.</p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-4" style="background:;">
+  <hgroup>
+    <h2>Shiny code</h2>
+  </hgroup>
+  <article data-timings="">
+    <p>The Shiny code consists of two parts, the server.R and ui.R files.  Here is the portion of server.R which is of the most interest where the input and output are handled:</p>
+
+<pre><code class="r">shinyServer(function(input, output) {
+  # get the input of the checkbox selections
+  output$choose_apps &lt;- renderUI({
+    # Create the checkboxes and select them all by default
+    checkboxGroupInput(&quot;checkGroup&quot;, &quot;Choose Applications&quot;, 
+                       choices  = appnamenumbercombo
+                       )
+  })
+  ticketcount3 &lt;- reactive({
+   a &lt;- subset(ticketcount2, ticketcount2$NameandNumber %in% input$checkGroup)
+   a &lt;- droplevels(a)
+   return(a)
+  })
+</code></pre>
+
+<hr>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+    <slide class="backdrop"></slide>
+  </slides>
+  <div class="pagination pagination-small" id='io2012-ptoc' style="display:none;">
+    <ul>
+      <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=1 title='Introduction'>
+         1
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=2 title='Pre-processing'>
+         2
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=3 title='Input and Simplification of the Data'>
+         3
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=4 title='Shiny code'>
+         4
+      </a>
+    </li>
+  </ul>
+  </div>  <!--[if IE]>
+    <script 
+      src="http://ajax.googleapis.com/ajax/libs/chrome-frame/1/CFInstall.min.js">  
+    </script>
+    <script>CFInstall.check({mode: 'overlay'});</script>
+  <![endif]-->
+</body>
+  <!-- Load Javascripts for Widgets -->
+  
+  <!-- MathJax: Fall back to local if CDN offline but local image fonts are not supported (saves >100MB) -->
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {
+        inlineMath: [['$','$'], ['\\(','\\)']],
+        processEscapes: true
+      }
+    });
+  </script>
+  <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/2.0-latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  <!-- <script src="https://c328740.ssl.cf1.rackcdn.com/mathjax/2.0-latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script> -->
+  <script>window.MathJax || document.write('<script type="text/x-mathjax-config">MathJax.Hub.Config({"HTML-CSS":{imageFont:null}});<\/script><script src="http://slidifylibraries2.googlecode.com/git/inst/libraries/widgets/mathjax/MathJax.js?config=TeX-AMS-MML_HTMLorMML"><\/script>')
+</script>
+<!-- LOAD HIGHLIGHTER JS FILES -->
+  <script src="http://slidifylibraries2.googlecode.com/git/inst/libraries/highlighters/highlight.js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  <!-- DONE LOADING HIGHLIGHTER JS FILES -->
+   
+  </html>

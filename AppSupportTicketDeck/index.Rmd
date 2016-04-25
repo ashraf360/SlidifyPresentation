@@ -1,0 +1,82 @@
+---
+title       : An Application to Display Support Ticket Trends
+subtitle    : A Shiny App 
+author      : Ashraf Youssef  
+job         : Coursera Data Science Specialization Student
+framework   : io2012        # {io2012, html5slides, shower, dzslides, ...}
+highlighter : highlight.js  # {highlight.js, prettify, highlight}
+hitheme     : tomorrow      # 
+widgets     : [mathjax]            # {mathjax, quiz, bootstrap}
+mode        : standalone # {standalone, draft}
+knit        : slidify::knit2slides
+---
+
+## Introduction
+
+1. The Shiny app that I created can be found at the following location:
+  https://ashraf.shinyapps.io/AppSupportTickets/
+  
+2. The purpose of this application is to allow a user to graph the historical trend of the number of support tickets for a set of 12 applications using check boxes
+2. The app was written using Shiny and reactive controls
+3. This will be the foundation for a much more sophisticated application that will predict the quality of the financial monthly close for the company based on a number of other factors.
+
+
+--- .class #id 
+
+## Pre-processing
+* The raw data is a large multi-megabyte file.  This is not used in the Shiny app, but rather I created a summary file that becomes the input for the app
+
+Here is the code that processes the raw data:
+```{r,eval=FALSE}
+
+setwd('~/DataScience/Rwork/DataProducts/FinalProject')
+rawdata<-read.csv('AppDataMarch2016.csv')
+ticketsummary<-group_by(rawdata,Incident.Created.Year.Month.Display.Code,
+                        Related.Root.Configuration.Item.Application.Portfolio.Identifier,
+                        Related.Root.Configuration.Item.Business.Friendly.Name)
+
+(ticketcount <- summarize(ticketsummary,count=n()))
+
+write.csv(ticketcount, file='tickcount.csv')
+
+ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier<-
+  as.factor(ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier)
+```
+
+---
+
+## Input and Simplification of the Data
+Reading in the input file:
+```{r}
+ticketcount<-read.csv(file='tickcount.csv')
+ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier<-
+  as.factor(ticketcount$Related.Root.Configuration.Item.Application.Portfolio.Identifier)
+ticketcount1<-subset(ticketcount, Incident.Created.Year.Month.Display.Code !="", drop = T)
+dim(ticketcount1)
+```
+This code above also removes all the data where there is no year/code combination present.
+
+Then we limit the data to a set of 12 applications listed by their 6 digit identifier.  Not all of these applications have ticket data in the input file.
+
+---
+
+## Shiny code
+The Shiny code consists of two parts, the server.R and ui.R files.  Here is the portion of server.R which is of the most interest where the input and output are handled:
+```{r,eval=FALSE}
+shinyServer(function(input, output) {
+  # get the input of the checkbox selections
+  output$choose_apps <- renderUI({
+    # Create the checkboxes and select them all by default
+    checkboxGroupInput("checkGroup", "Choose Applications", 
+                       choices  = appnamenumbercombo
+                       )
+  })
+  ticketcount3 <- reactive({
+   a <- subset(ticketcount2, ticketcount2$NameandNumber %in% input$checkGroup)
+   a <- droplevels(a)
+   return(a)
+  })
+ 
+```
+---
+
